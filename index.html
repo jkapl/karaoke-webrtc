@@ -11,21 +11,28 @@
     <video autoplay id="me"></video>
     <video autoplay id="you"></video>
   </div>
-
   <div>
-    <video autoplay id="me2"></video>
-    <video autoplay id="you2"></video>
-  </div>
-  <div>
-    Remote Description:
+    Callee? Enter the remote description from the caller:
     <input type="text" id="remoteDescription">
     <button id="submitRemoteDescription">Submit</button>
   </div>
 
   <div>
-    Answer:
+    Callee? Enter the caller's ICE Candidate:
+    <input type="text" id="callerIceCand">
+    <!-- <button id="submitCallerIce">Submit</button> -->
+  </div>
+
+  <div>
+    Caller? Enter the answer from the callee:
     <input type="text" id="answer">
     <button id="submitAnswerButton">Submit</button>
+  </div>
+
+  <div>
+    Caller? Enter the callee's ICE Candidate:
+    <input type="text" id="receiverIceCand">
+    <!-- <button id="submitReceiverIce">Submit</button> -->
   </div>
   
   <button id="startCallButton">Start a call</button>
