@@ -9,6 +9,8 @@ let setAnswerButton = document.getElementById("submitAnswerButton");
 let answer = document.getElementById("answer");
 let callerIceCandidate = document.getElementById("callerIceCand");
 let receiverIceCandidate = document.getElementById("receiverIceCand");
+let callerIceCandidateButton = document.getElementById("submitCallerIce")
+let receiverIceCandidateButton = document.getElementById("submitReceiverIce")
 
 let callerIceCandidates = [];
 let receiverIceCandidates = [];
@@ -27,11 +29,6 @@ const offerOptions = {
 };
 
 // Caller
-// async function getVideo () {
-//   const stream = await navigator.mediaDevices.getUserMedia( { video: true });
-//   gotStream(stream);
-// }
-
 async function call () {
 
   const stream = await navigator.mediaDevices.getUserMedia( { audio:true, video: true });
@@ -51,11 +48,23 @@ async function call () {
 
   caller.setLocalDescription(sessDescription)
 
+  caller.onicegatheringstatechange = () => {
+    console.log(caller.iceGatheringState);
+    if (caller.iceGatheringState === 'complete') {
+      console.log(JSON.stringify(callerIceCandidates));
+    }
+  };
+
+  caller.oniceconnectionstatechange = () => {
+    console.log(caller.iceConnectionState);
+  }
+
+
   caller.onicecandidate = e => {
     if (!e.candidate) return
-    let cand = JSON.stringify(e.candidate);
-    console.log(cand);
-    // callerIceCandidates.push(e.candidate);
+    // let cand = JSON.stringify(e.candidate);
+    // console.log(cand);
+    callerIceCandidates.push(e.candidate);
     // caller.addIceCandidate(e.candidate);
     // caller.onicecandidate = null;
   }
@@ -76,7 +85,7 @@ startCallButton.onclick = function() {
 }
 
 
-// receiver
+// callee
 async function receiverSendVideo() {
 
   receiver.setRemoteDescription(JSON.parse(remoteDescription.value))
@@ -102,10 +111,21 @@ async function receiverSendVideo() {
 
   receiver.onicecandidate = e => {
     if (!e.candidate) return
-    let cand = JSON.stringify(e.candidate);
-    console.log(cand);
-    // receiverIceCandidates.push(e.candidate);
+    // let cand = JSON.stringify(e.candidate);
+    // console.log(cand);
+    receiverIceCandidates.push(e.candidate);
     // receiver.onicecandidate = null;
+  }
+
+  receiver.onicegatheringstatechange = () => {
+    console.log(receiver.iceGatheringState);
+    if (receiver.iceGatheringState === 'complete') {
+      console.log(JSON.stringify(receiverIceCandidates));
+    }
+  };
+
+  receiver.oniceconnectionstatechange = () => {
+    console.log(receiver.iceConnectionState);
   }
 
   // receiver.ontrack = e => {
@@ -124,14 +144,33 @@ async function receiverSendVideo() {
 
 remoteDescriptionButton.onclick = async function() {
   await receiverSendVideo();
-  let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));
-  receiver.addIceCandidate(candidate);
+  // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));
+  // receiver.addIceCandidate(candidate);
 }
 
 setAnswerButton.onclick = function() {
   caller.setRemoteDescription(JSON.parse(answer.value));
-  let candidate = new RTCIceCandidate(JSON.parse(receiverIceCandidate.value));
-  caller.addIceCandidate(candidate);
+  // let candidate = new RTCIceCandidate(JSON.parse(receiverIceCandidate.value));
+  // caller.addIceCandidate(candidate);
+}
+
+callerIceCandidateButton.onclick = function () {
+  let candidates = JSON.parse(callerIceCandidate.value);
+  for (let i = 0; i < candidates.length; i++) {
+    let candidate = new RTCIceCandidate(candidates[i]);
+    receiver.addIceCandidate(candidate);
+  }
+  // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));  
+  // receiver.addIceCandidate(candidate);
+}
+
+receiverIceCandidateButton.onclick = function () {
+  let candidates = JSON.parse(receiverIceCandidates.value);
+  for (let i = 0; i < candidates.length; i++) {
+    let candidate = new RTCIceCandidate(candidates[i]);  
+    caller.addIceCandidate(candidate);
+  }
+  // caller.addIceCandidate(candidate);
 }
 
 screenshotButton.onclick = function() {
