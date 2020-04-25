@@ -34,20 +34,16 @@ const offerOptions = {
 async function call () {
 
   const stream = await navigator.mediaDevices.getUserMedia( { audio:true, video: true });
-  // let caller = new RTCPeerConnection(server);
+
   console.log('calling')
   myVideo.srcObject = stream;
 
   stream.getTracks().forEach(track => caller.addTrack(track, stream));
-  // caller.addTrack(stream);
-
-  // caller.createOffer(offer => {
-  //   caller.setLocalDescription(offer);
-  // });
 
   let sessDescription = await caller.createOffer();
-  ws.send("in the browser")
-  console.log(JSON.stringify(sessDescription))
+  let identifiedSessDescription = {'side': 'caller', sessDescription};
+  ws.send(JSON.stringify(identifiedSessDescription));
+  console.log(JSON.stringify(identifiedSessDescription));
 
   caller.setLocalDescription(sessDescription)
 

@@ -4,7 +4,7 @@ ws.onerror = err => console.log(err);
 ws.onclose = () => console.log("socket closed");
 
 ws.onopen = () => {
-  ws.send("Connection established");
+  // ws.send("Connection established");
 
 };
 
