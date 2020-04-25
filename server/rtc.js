@@ -1,23 +1,15 @@
-let myVideo = document.getElementById("me");
-let yourVideo = document.getElementById("you");
-let screenshotButton = document.getElementById("screenshotButton");
-let screenshot = document.getElementById("screenshot");
-let remoteDescriptionButton = document.getElementById("submitRemoteDescription");
-let remoteDescription = document.getElementById("remoteDescription");
-let startCallButton = document.getElementById("startCallButton");
-let setAnswerButton = document.getElementById("submitAnswerButton");
-let answer = document.getElementById("answer");
-let callerIceCandidate = document.getElementById("callerIceCand");
-let receiverIceCandidate = document.getElementById("receiverIceCand");
-let callerIceCandidateButton = document.getElementById("submitCallerIce")
-let receiverIceCandidateButton = document.getElementById("submitReceiverIce")
-let answerButton = document.getElementById("acceptCall");
+const myVideo = document.getElementById("me");
+const yourVideo = document.getElementById("you");
+const screenshotButton = document.getElementById("screenshotButton");
+const screenshot = document.getElementById("screenshot");
+const startCallButton = document.getElementById("startCallButton");
+const answerButton = document.getElementById("acceptCall");
 
 let callerIceCandidates = [];
 let receiverIceCandidates = [];
 
 
-let server = {
+const server = {
   iceServers: [{url: "stun:stun.l.google.com:19302"}]
 }
 
@@ -52,12 +44,19 @@ async function call () {
       case ('answer'):
         console.log('in switch')
         caller.setRemoteDescription(msg);
+        break;
       case ('ICEcandidate') :
+        let promises = [];
         let candidates = msg.receiverIceCandidates;
         for (let i = 0; i < candidates.length; i++) {
           let candidate = new RTCIceCandidate(candidates[i]);
-          caller.addIceCandidate(candidate);
+          let promise = new Promise( (resolve ) => {
+            resolve(caller.addIceCandidate(candidate));
+          })
+          promises.push(promise);
         }
+        Promise.all(promises);
+          // caller.addIceCandidate(candidate);
     }
   }
 
@@ -112,19 +111,25 @@ async function receiverSendVideo() {
       case ('offer'):
         console.log('in switch')
         negotiateExchange(msg);
-      case ('ICEcandidate') :
-        console.log(msg);
-        let candidates = msg.callerIceCandidates;
-        for (let i = 0; i < candidates.length; i++) {
-          let candidate = new RTCIceCandidate(candidates[i]);
-          receiver.addIceCandidate(candidate);
-        }
+        break;
+      // case ('ICEcandidate') :
+      //   console.log(msg);
+      //   let candidates = msg.callerIceCandidates;
+      //   let promises = [];
+      //   for (let i = 0; i < candidates.length; i++) {
+      //     let candidate = new RTCIceCandidate(candidates[i]);
+      //     let promise = new Promise( (resolve) => {
+      //       resolve(receiver.addIceCandidate(candidate));
+      //     });
+      //     promises.push(promise);
+      //   }
+      //   Promise.all(promises);
+      }
         //handle ice candidates
     }
-  }
   
   async function negotiateExchange (offer) {
-    'inside negotiate'
+    console.log('inside negotiate')
     const stream = await navigator.mediaDevices.getUserMedia( { video: true });
 
     // let receiver = new RTCPeerConnection(server);
@@ -140,6 +145,21 @@ async function receiverSendVideo() {
 
     ws.send(JSON.stringify(sessDescription));
 
+    ws.onmessage = e => {
+      let msg = JSON.parse(e.data);
+      if (msg.type === 'ICEcandidate') {
+        let candidates = msg.callerIceCandidates;
+        let promises = [];
+        for (let i = 0; i < candidates.length; i++) {
+          let candidate = new RTCIceCandidate(candidates[i]);
+          let promise = new Promise( (resolve) => {
+            resolve(receiver.addIceCandidate(candidate));
+          });
+          promises.push(promise);
+        }
+        Promise.all(promises);
+      }
+    }
     receiver.onicecandidate = e => {
       if (!e.candidate) return
       // let cand = JSON.stringify(e.candidate);
@@ -177,39 +197,8 @@ async function receiverSendVideo() {
 }
 
 answerButton.onclick =  async function () {
-  await receiverSendVideo();
+  receiverSendVideo();
 }
-
-// remoteDescriptionButton.onclick = async function() {
-//   await receiverSendVideo();
-//   // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));
-//   // receiver.addIceCandidate(candidate);
-// }
-
-// setAnswerButton.onclick = function() {
-//   caller.setRemoteDescription(JSON.parse(answer.value));
-//   // let candidate = new RTCIceCandidate(JSON.parse(receiverIceCandidate.value));
-//   // caller.addIceCandidate(candidate);
-// }
-
-// callerIceCandidateButton.onclick = function () {
-//   let candidates = JSON.parse(callerIceCandidate.value);
-//   for (let i = 0; i < candidates.length; i++) {
-//     let candidate = new RTCIceCandidate(candidates[i]);
-//     receiver.addIceCandidate(candidate);
-//   }
-//   // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));  
-//   // receiver.addIceCandidate(candidate);
-// }
-
-// receiverIceCandidateButton.onclick = function () {
-//   let candidates = JSON.parse(receiverIceCandidates.value);
-//   for (let i = 0; i < candidates.length; i++) {
-//     let candidate = new RTCIceCandidate(candidates[i]);  
-//     caller.addIceCandidate(candidate);
-//   }
-//   // caller.addIceCandidate(candidate);
-// }
 
 screenshotButton.onclick = function() {
   screenshot.width = myVideo.videoWidth; 

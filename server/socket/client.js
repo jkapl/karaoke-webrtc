@@ -1,4 +1,4 @@
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket('wss://b05786be.ngrok.io');
 
 ws.onerror = err => console.log(err);
 ws.onclose = () => console.log("socket closed");
