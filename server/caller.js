@@ -20,6 +20,8 @@ let server = {
   iceServers: [{url: "stun:stun.l.google.com:19302"}]
 }
 
+import ws from './socket/client.js';
+
 let caller = new RTCPeerConnection(server);
 let receiver = new RTCPeerConnection(server);
 
@@ -44,6 +46,7 @@ async function call () {
   // });
 
   let sessDescription = await caller.createOffer();
+  ws.send("in the browser")
   console.log(JSON.stringify(sessDescription))
 
   caller.setLocalDescription(sessDescription)
