@@ -1,22 +1,15 @@
-let myVideo = document.getElementById("me");
-let yourVideo = document.getElementById("you");
-let screenshotButton = document.getElementById("screenshotButton");
-let screenshot = document.getElementById("screenshot");
-let remoteDescriptionButton = document.getElementById("submitRemoteDescription");
-let remoteDescription = document.getElementById("remoteDescription");
-let startCallButton = document.getElementById("startCallButton");
-let setAnswerButton = document.getElementById("submitAnswerButton");
-let answer = document.getElementById("answer");
-let callerIceCandidate = document.getElementById("callerIceCand");
-let receiverIceCandidate = document.getElementById("receiverIceCand");
-let callerIceCandidateButton = document.getElementById("submitCallerIce")
-let receiverIceCandidateButton = document.getElementById("submitReceiverIce")
+const myVideo = document.getElementById("me");
+const yourVideo = document.getElementById("you");
+const screenshotButton = document.getElementById("screenshotButton");
+const screenshot = document.getElementById("screenshot");
+const startCallButton = document.getElementById("startCallButton");
+const answerButton = document.getElementById("acceptCall");
 
 let callerIceCandidates = [];
 let receiverIceCandidates = [];
 
 
-let server = {
+const server = {
   iceServers: [{url: "stun:stun.l.google.com:19302"}]
 }
 
@@ -41,16 +34,39 @@ async function call () {
   stream.getTracks().forEach(track => caller.addTrack(track, stream));
 
   let sessDescription = await caller.createOffer();
-  let identifiedSessDescription = {'side': 'caller', sessDescription};
-  ws.send(JSON.stringify(identifiedSessDescription));
-  console.log(JSON.stringify(identifiedSessDescription));
+
+  ws.send(JSON.stringify(sessDescription));
+  // console.log(`caller session description: ${sessDescription}`)
+  ws.onmessage = e => {
+    let msg = JSON.parse(e.data);
+    console.log(msg);
+    switch (msg.type) {
+      case ('answer'):
+        console.log('in switch')
+        caller.setRemoteDescription(msg);
+        break;
+      case ('ICEcandidate') :
+        let promises = [];
+        let candidates = msg.receiverIceCandidates;
+        for (let i = 0; i < candidates.length; i++) {
+          let candidate = new RTCIceCandidate(candidates[i]);
+          let promise = new Promise( (resolve ) => {
+            resolve(caller.addIceCandidate(candidate));
+          })
+          promises.push(promise);
+        }
+        Promise.all(promises);
+          // caller.addIceCandidate(candidate);
+    }
+  }
 
   caller.setLocalDescription(sessDescription)
 
   caller.onicegatheringstatechange = () => {
     console.log(caller.iceGatheringState);
     if (caller.iceGatheringState === 'complete') {
-      console.log(JSON.stringify(callerIceCandidates));
+      console.log(JSON.stringify(`caller ice candidates: ${callerIceCandidates}`));
+      ws.send(JSON.stringify({'type': 'ICEcandidate', callerIceCandidates}))
     }
   };
 
@@ -86,90 +102,102 @@ startCallButton.onclick = function() {
 
 // callee
 async function receiverSendVideo() {
+  console.log('inside receiver send video')
 
-  receiver.setRemoteDescription(JSON.parse(remoteDescription.value))
-  const stream = await navigator.mediaDevices.getUserMedia( { video: true });
-
-  // let receiver = new RTCPeerConnection(server);
-  console.log('receiving')
-  myVideo.srcObject = stream;
-  stream.getTracks().forEach(track => receiver.addTrack(track, stream));
-
-
-  // receiver.setRemoteDescription(JSON.parse(remoteDescription.value))
-
-  // caller.createOffer(offer => {
-  //   caller.setLocalDescription(offer);
-  // });
-
-  let sessDescription = await receiver.createAnswer();
-
-  console.log(JSON.stringify(sessDescription))
-
-  await receiver.setLocalDescription(sessDescription)
-
-  receiver.onicecandidate = e => {
-    if (!e.candidate) return
-    // let cand = JSON.stringify(e.candidate);
-    // console.log(cand);
-    receiverIceCandidates.push(e.candidate);
-    // receiver.onicecandidate = null;
-  }
-
-  receiver.onicegatheringstatechange = () => {
-    console.log(receiver.iceGatheringState);
-    if (receiver.iceGatheringState === 'complete') {
-      console.log(JSON.stringify(receiverIceCandidates));
+  ws.onmessage = e => {
+    let msg = JSON.parse(e.data);
+    console.log(msg);
+    switch (msg.type) {
+      case ('offer'):
+        console.log('in switch')
+        negotiateExchange(msg);
+        break;
+      // case ('ICEcandidate') :
+      //   console.log(msg);
+      //   let candidates = msg.callerIceCandidates;
+      //   let promises = [];
+      //   for (let i = 0; i < candidates.length; i++) {
+      //     let candidate = new RTCIceCandidate(candidates[i]);
+      //     let promise = new Promise( (resolve) => {
+      //       resolve(receiver.addIceCandidate(candidate));
+      //     });
+      //     promises.push(promise);
+      //   }
+      //   Promise.all(promises);
+      }
+        //handle ice candidates
     }
-  };
+  
+  async function negotiateExchange (offer) {
+    console.log('inside negotiate')
+    const stream = await navigator.mediaDevices.getUserMedia( { video: true });
 
-  receiver.oniceconnectionstatechange = () => {
-    console.log(receiver.iceConnectionState);
-  }
+    // let receiver = new RTCPeerConnection(server);
+    console.log('receiving')
+    myVideo.srcObject = stream;
+    stream.getTracks().forEach(track => receiver.addTrack(track, stream));
+    await receiver.setRemoteDescription(offer);
+    let sessDescription = await receiver.createAnswer();
 
-  // receiver.ontrack = e => {
-  //   console.log('receiver got track', e.track, e.streams);
-  //   yourVideo.srcObject = e.streams[0];
-  // } 
+    console.log(`Callee answer: ${JSON.stringify(sessDescription)}`)
 
-  receiver.ontrack = e => {
-    console.log('track event muted = ' + e.track.muted);
-    e.track.onunmute = () => {
-      console.log('track unmuted');
-      yourVideo.srcObject = e.streams[0];
+    await receiver.setLocalDescription(sessDescription)
+
+    ws.send(JSON.stringify(sessDescription));
+
+    ws.onmessage = e => {
+      let msg = JSON.parse(e.data);
+      if (msg.type === 'ICEcandidate') {
+        let candidates = msg.callerIceCandidates;
+        let promises = [];
+        for (let i = 0; i < candidates.length; i++) {
+          let candidate = new RTCIceCandidate(candidates[i]);
+          let promise = new Promise( (resolve) => {
+            resolve(receiver.addIceCandidate(candidate));
+          });
+          promises.push(promise);
+        }
+        Promise.all(promises);
+      }
     }
+    receiver.onicecandidate = e => {
+      if (!e.candidate) return
+      // let cand = JSON.stringify(e.candidate);
+      // console.log(cand);
+      receiverIceCandidates.push(e.candidate);
+      // receiver.onicecandidate = null;
+    }
+
+    receiver.onicegatheringstatechange = () => {
+      console.log(receiver.iceGatheringState);
+      if (receiver.iceGatheringState === 'complete') {
+        console.log(JSON.stringify(receiverIceCandidates));
+        ws.send(JSON.stringify({'type': 'ICEcandidate', receiverIceCandidates}))
+      }
+    };
+
+    receiver.oniceconnectionstatechange = () => {
+      console.log(receiver.iceConnectionState);
+    }
+
+    // receiver.ontrack = e => {
+    //   console.log('receiver got track', e.track, e.streams);
+    //   yourVideo.srcObject = e.streams[0];
+    // } 
+
+    receiver.ontrack = e => {
+      console.log('track event muted = ' + e.track.muted);
+      e.track.onunmute = () => {
+        console.log('track unmuted');
+        yourVideo.srcObject = e.streams[0];
+      }
+    }
+
   }
 }
 
-remoteDescriptionButton.onclick = async function() {
-  await receiverSendVideo();
-  // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));
-  // receiver.addIceCandidate(candidate);
-}
-
-setAnswerButton.onclick = function() {
-  caller.setRemoteDescription(JSON.parse(answer.value));
-  // let candidate = new RTCIceCandidate(JSON.parse(receiverIceCandidate.value));
-  // caller.addIceCandidate(candidate);
-}
-
-callerIceCandidateButton.onclick = function () {
-  let candidates = JSON.parse(callerIceCandidate.value);
-  for (let i = 0; i < candidates.length; i++) {
-    let candidate = new RTCIceCandidate(candidates[i]);
-    receiver.addIceCandidate(candidate);
-  }
-  // let candidate = new RTCIceCandidate(JSON.parse(callerIceCandidate.value));  
-  // receiver.addIceCandidate(candidate);
-}
-
-receiverIceCandidateButton.onclick = function () {
-  let candidates = JSON.parse(receiverIceCandidates.value);
-  for (let i = 0; i < candidates.length; i++) {
-    let candidate = new RTCIceCandidate(candidates[i]);  
-    caller.addIceCandidate(candidate);
-  }
-  // caller.addIceCandidate(candidate);
+answerButton.onclick =  async function () {
+  receiverSendVideo();
 }
 
 screenshotButton.onclick = function() {

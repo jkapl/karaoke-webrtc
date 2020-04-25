@@ -34,7 +34,6 @@ wss.on('connection', (ws) => {
   //   }
   // });
 
-  ws.send('something');
 })
 
 module.exports = wss;
