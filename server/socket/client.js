@@ -9,7 +9,7 @@ ws.onopen = () => {
 };
 
 ws.onmessage = e => {
-  console.log(e.data)
+  // console.log(e.data)
 }
 
 export default ws;

@@ -8,13 +8,15 @@ const answerButton = document.getElementById("acceptCall");
 let callerIceCandidates = [];
 let receiverIceCandidates = [];
 
-
+// STUN server
 const server = {
   iceServers: [{url: "stun:stun.l.google.com:19302"}]
 }
 
+// Import WebSocket
 import ws from './socket/client.js';
 
+// Create caller and call recipient RTCPeerConnection objects
 let caller = new RTCPeerConnection(server);
 let receiver = new RTCPeerConnection(server);
 
@@ -26,44 +28,46 @@ const offerOptions = {
 // Caller
 async function call () {
 
+  // Collect an audio/video stream from the local device
   const stream = await navigator.mediaDevices.getUserMedia( { audio:true, video: true });
 
   console.log('calling')
   myVideo.srcObject = stream;
 
+  // Add stream tracks to the RTCPeerConnection object
   stream.getTracks().forEach(track => caller.addTrack(track, stream));
 
+  // Create an SDP offer to send to the recipient of the call
   let sessDescription = await caller.createOffer();
 
+  // Send the SDP offer to the signaling channel - in this case, a WebSocket connection
   ws.send(JSON.stringify(sessDescription));
-  // console.log(`caller session description: ${sessDescription}`)
+
+  // Handle receiving messages from the WebSocket connection
   ws.onmessage = e => {
     let msg = JSON.parse(e.data);
-    console.log(msg);
+    console.log(`Message received. Type: ${msg.type} Message: ${msg}`);
     switch (msg.type) {
+      // If the message is of type answer, set it as the remote description of the RTC connection
       case ('answer'):
-        console.log('in switch')
         caller.setRemoteDescription(msg);
         break;
+      // If the message is of type ICEcandidate, add the candidate to the RTC connection
       case ('ICEcandidate') :
         let promises = [];
         let candidates = msg.receiverIceCandidates;
         for (let i = 0; i < candidates.length; i++) {
           let candidate = new RTCIceCandidate(candidates[i]);
-          let promise = new Promise( (resolve ) => {
-            resolve(caller.addIceCandidate(candidate));
-          })
-          promises.push(promise);
+          promises.push(caller.addIceCandidate(candidate));
         }
         Promise.all(promises);
-          // caller.addIceCandidate(candidate);
     }
   }
 
   caller.setLocalDescription(sessDescription)
 
   caller.onicegatheringstatechange = () => {
-    console.log(caller.iceGatheringState);
+    console.log(`ICE gathering state: ${caller.iceGatheringState}`);
     if (caller.iceGatheringState === 'complete') {
       console.log(JSON.stringify(`caller ice candidates: ${callerIceCandidates}`));
       ws.send(JSON.stringify({'type': 'ICEcandidate', callerIceCandidates}))
@@ -71,23 +75,16 @@ async function call () {
   };
 
   caller.oniceconnectionstatechange = () => {
-    console.log(caller.iceConnectionState);
+    console.log(`ICE connection state: ${caller.iceConnectionState}`);
   }
 
 
   caller.onicecandidate = e => {
     if (!e.candidate) return
-    // let cand = JSON.stringify(e.candidate);
-    // console.log(cand);
     callerIceCandidates.push(e.candidate);
-    // caller.addIceCandidate(e.candidate);
-    // caller.onicecandidate = null;
   }
 
-  // caller.onaddstream = e => {
-  //   yourVideo.srcObject = e.stream;
-  // };
-
+  // Stream received; attach it to the browser to view
   caller.ontrack = e => {
     console.log('caller got track', e.track, e.streams);
     yourVideo.srcObject = e.streams[0];
@@ -100,16 +97,13 @@ startCallButton.onclick = function() {
 }
 
 
-// callee
+// Callee
 async function receiverSendVideo() {
-  console.log('inside receiver send video')
-
   ws.onmessage = e => {
     let msg = JSON.parse(e.data);
     console.log(msg);
     switch (msg.type) {
       case ('offer'):
-        console.log('in switch')
         negotiateExchange(msg);
         break;
       // case ('ICEcandidate') :
@@ -129,17 +123,12 @@ async function receiverSendVideo() {
     }
   
   async function negotiateExchange (offer) {
-    console.log('inside negotiate')
     const stream = await navigator.mediaDevices.getUserMedia( { video: true });
-
-    // let receiver = new RTCPeerConnection(server);
-    console.log('receiving')
+    console.log(`Message received. Type: ${offer.type} Message: ${offer}`);
     myVideo.srcObject = stream;
     stream.getTracks().forEach(track => receiver.addTrack(track, stream));
     await receiver.setRemoteDescription(offer);
     let sessDescription = await receiver.createAnswer();
-
-    console.log(`Callee answer: ${JSON.stringify(sessDescription)}`)
 
     await receiver.setLocalDescription(sessDescription)
 
@@ -152,9 +141,7 @@ async function receiverSendVideo() {
         let promises = [];
         for (let i = 0; i < candidates.length; i++) {
           let candidate = new RTCIceCandidate(candidates[i]);
-          let promise = new Promise( (resolve) => {
-            resolve(receiver.addIceCandidate(candidate));
-          });
+          let promise = receiver.addIceCandidate(candidate);
           promises.push(promise);
         }
         Promise.all(promises);
@@ -162,42 +149,39 @@ async function receiverSendVideo() {
     }
     receiver.onicecandidate = e => {
       if (!e.candidate) return
-      // let cand = JSON.stringify(e.candidate);
-      // console.log(cand);
       receiverIceCandidates.push(e.candidate);
-      // receiver.onicecandidate = null;
     }
 
     receiver.onicegatheringstatechange = () => {
-      console.log(receiver.iceGatheringState);
+      console.log(`ICE gathering state: ${receiver.iceGatheringState}`);
       if (receiver.iceGatheringState === 'complete') {
-        console.log(JSON.stringify(receiverIceCandidates));
+        console.log(JSON.stringify(`Callee ICE candidates: ${receiverIceCandidates}`));
         ws.send(JSON.stringify({'type': 'ICEcandidate', receiverIceCandidates}))
       }
     };
 
     receiver.oniceconnectionstatechange = () => {
-      console.log(receiver.iceConnectionState);
+      console.log(`ICE connection state: ${receiver.iceConnectionState}`);
     }
-
-    // receiver.ontrack = e => {
-    //   console.log('receiver got track', e.track, e.streams);
-    //   yourVideo.srcObject = e.streams[0];
-    // } 
 
     receiver.ontrack = e => {
-      console.log('track event muted = ' + e.track.muted);
-      e.track.onunmute = () => {
-        console.log('track unmuted');
-        yourVideo.srcObject = e.streams[0];
-      }
-    }
+      console.log('receiver got track', e.track, e.streams);
+      yourVideo.srcObject = e.streams[0];
+    } 
+
+    // receiver.ontrack = e => {
+    //   console.log('track event muted = ' + e.track.muted);
+    //   e.track.onunmute = () => {
+    //     console.log('track unmuted');
+    //     yourVideo.srcObject = e.streams[0];
+    //   }
+    // }
 
   }
 }
 
 answerButton.onclick =  async function () {
-  receiverSendVideo();
+  await receiverSendVideo();
 }
 
 screenshotButton.onclick = function() {
