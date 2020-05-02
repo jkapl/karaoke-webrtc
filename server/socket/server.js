@@ -1,6 +1,6 @@
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ 
-  port: WEB_SOCKET_PORT,
+  port: 8080,
   clientTracking: true
 });
 
