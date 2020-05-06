@@ -8,6 +8,9 @@ const answerButton = document.getElementById("acceptCall");
 let callerIceCandidates = [];
 let receiverIceCandidates = [];
 
+let receiverInboundStream = null;
+let callerInboundStream = null;
+
 // STUN server
 const server = {
   iceServers: [{url: "stun:stun.l.google.com:19302"}]
@@ -164,10 +167,22 @@ async function receiverSendVideo() {
       console.log(`ICE connection state: ${receiver.iceConnectionState}`);
     }
 
+    // receiver.ontrack = e => {
+    //   console.log('receiver got track', e.track, e.streams);
+    //   yourVideo.srcObject = e.streams[0];
+    // } 
+    
     receiver.ontrack = e => {
-      console.log('receiver got track', e.track, e.streams);
-      yourVideo.srcObject = e.streams[0];
-    } 
+      if (e.streams && e.streams[0]) {
+        yourVideo.srcObject = e.streams[0];
+      } else {
+        if (!receiverInboundStream) {
+          receiverInboundStream = new MediaStream();
+          yourVideo.srcObject = receiverInboundStream;
+        }
+        receiverInboundStream.addTrack(e.track);
+      }
+    }
 
     // receiver.ontrack = e => {
     //   console.log('track event muted = ' + e.track.muted);

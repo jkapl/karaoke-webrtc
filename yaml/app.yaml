@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: joel-node-app
+spec:
+  selector:
+    matchLabels:
+      app: joel-node-app
+  template:
+    metadata:
+      labels:
+        app: joel-node-app
+    spec:
+      containers:
+      - name: myapp
+        image: quay.io/jkap/joel-node-app:v1.6
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 3000
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-app-service
+spec:
+  selector:
+    app: joel-node-app
+  ports:
+  - port: 80
+    name: web
+    targetPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socket-service
+spec:
+  selector:
+    app: joel-node-app
+  ports:
+  - port: 80
+    name: socket
+    targetPort: 8080
+
+
